@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64,   os: ubuntu-latest,  target: x86_64-unknown-linux-musl, archive: tar.gz, bin: md5sum_readname }
+          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc,    archive: zip,    bin: md5sum_readname.exe }
+          
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" dist/
+          cp README.md LICENSE dist/ 2>/dev/null || true
+          asset="md5sum_readname-${{ github.ref_name }}-${{ matrix.name }}"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "$asset.zip" ./dist/*
+          else
+            tar -czf "$asset.tar.gz" -C dist .
+          fi
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            md5sum_readname-*.tar.gz
+            md5sum_readname-*.zip
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release archives
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
