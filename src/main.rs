@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::process;
 
 use flate2::read::GzDecoder;
