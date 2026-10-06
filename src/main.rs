@@ -27,6 +27,7 @@ fn main() {
     let reader = BufReader::new(decoder);
 
     let mut hasher = Md5::new();
+
     let mut line_num: u64 = 0;
 
     for line in reader.lines() {
